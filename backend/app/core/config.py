@@ -22,6 +22,10 @@ class Settings:
     database_url: str = getenv("DATABASE_URL", "")
     ollama_base_url: str = getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     ollama_model: str = getenv("OLLAMA_MODEL", "")
+    cors_origins: str = getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    )
 
 
 settings = Settings()
