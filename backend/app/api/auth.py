@@ -8,17 +8,19 @@ from app.core.security import bam_mat_khau
 from app.db.database import get_db
 from app.models.user import User
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class YeuCauDangKy(BaseModel):
     email: EmailStr
+    name: str
     password: str
 
 
 class PhanHoiDangKy(BaseModel):
     id: int
     email: str
+    name: str
     message: str
 
 
@@ -31,6 +33,19 @@ def dang_ky_nguoi_dung(
     payload: YeuCauDangKy,
     db: Session = Depends(get_db),
 ):
+    if not payload.name or payload.name.strip() == "":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Họ tên không được để trống",
+        )
+
+    ten_chuan_hoa = payload.name.strip()
+    if len(ten_chuan_hoa) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Họ tên không được vượt quá 100 ký tự",
+        )
+
     if not payload.password or payload.password.strip() == "":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -66,6 +81,7 @@ def dang_ky_nguoi_dung(
 
     nguoi_dung_moi = User(
         email=email_chuan_hoa,
+        name=ten_chuan_hoa,
         password_hash=mat_khau_da_bam,
         role="USER",
     )
@@ -91,5 +107,6 @@ def dang_ky_nguoi_dung(
     return PhanHoiDangKy(
         id=id_nguoi_dung,
         email=email_chuan_hoa,
+        name=ten_chuan_hoa,
         message="Đăng ký thành công",
     )
