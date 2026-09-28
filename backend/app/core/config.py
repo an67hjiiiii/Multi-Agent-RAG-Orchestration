@@ -1,5 +1,16 @@
 from dataclasses import dataclass
 from os import getenv
+from pathlib import Path
+from dotenv import load_dotenv
+
+_backend_dir = Path(__file__).resolve().parent.parent.parent
+_root_dir = _backend_dir.parent
+if (_root_dir / ".env").exists():
+    load_dotenv(_root_dir / ".env")
+elif (_backend_dir / ".env").exists():
+    load_dotenv(_backend_dir / ".env")
+else:
+    load_dotenv()
 
 
 @dataclass(frozen=True)
