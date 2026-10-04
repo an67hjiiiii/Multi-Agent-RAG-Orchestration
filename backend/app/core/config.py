@@ -26,6 +26,13 @@ class Settings:
         "CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173",
     )
+    ten_cookie_phien: str = "capone_session"
+    thoi_han_phien_phut: int = 60
+    cookie_phien_an_toan: bool = getenv("SESSION_COOKIE_SECURE", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
 
 settings = Settings()
