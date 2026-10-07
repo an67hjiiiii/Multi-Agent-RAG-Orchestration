@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "request_id": "REQ-001",
+  "request": "Thiết kế API tạo project và schema database. Mọi thao tác phải kiểm tra tenant_id để ngăn truy cập dữ liệu của tenant khác.",
+  "obligations": [
+    {
+      "id": "O-api",
+      "description": "Thiết kế API tạo project.",
+      "source_excerpt": "Thiết kế API tạo project"
+    },
+    {
+      "id": "O-data",
+      "description": "Thiết kế schema database cho project.",
+      "source_excerpt": "schema database"
+    },
+    {
+      "id": "O-security",
+      "description": "Mọi thao tác phải kiểm tra tenant_id.",
+      "source_excerpt": "Mọi thao tác phải kiểm tra tenant_id"
+    }
+  ],
+  "concerns": [
+    {
+      "id": "C-security",
+      "description": "Ngăn truy cập dữ liệu chéo tenant bằng tenant_id.",
+      "obligation_ids": ["O-api", "O-data", "O-security"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-security",
+      "document_id": "DOC-security",
+      "content": "Mọi truy vấn và thao tác API với project phải được giới hạn theo tenant_id của người dùng đã xác thực.",
+      "locator": "Security requirements / Tenant isolation"
+    }
+  ],
+  "available_roles": ["api", "database"],
+  "max_tasks": 4
+}

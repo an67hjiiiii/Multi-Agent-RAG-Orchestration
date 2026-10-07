@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "request_id": "REQ-001",
+  "obligations": [
+    {
+      "id": "O-api",
+      "description": "Thiết kế API tạo project.",
+      "source_excerpt": "Thiết kế API tạo project"
+    },
+    {
+      "id": "O-data",
+      "description": "Thiết kế schema database cho project.",
+      "source_excerpt": "schema database"
+    },
+    {
+      "id": "O-security",
+      "description": "Mọi thao tác phải kiểm tra tenant_id.",
+      "source_excerpt": "Mọi thao tác phải kiểm tra tenant_id"
+    }
+  ],
+  "concerns": [
+    {
+      "id": "C-security",
+      "description": "Ngăn truy cập dữ liệu chéo tenant bằng tenant_id.",
+      "obligation_ids": ["O-api", "O-data", "O-security"]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T-api",
+      "title": "Thiết kế API tạo project",
+      "description": "Định nghĩa request, response và kiểm tra tenant_id dựa trên schema database.",
+      "role": "api",
+      "obligation_ids": ["O-api", "O-security"],
+      "concern_ids": ["C-security"],
+      "evidence_ids": ["E-security"]
+    },
+    {
+      "id": "T-data",
+      "title": "Thiết kế schema project",
+      "description": "Định nghĩa các trường, khóa và quan hệ của project; bảo đảm dữ liệu được phân tách theo tenant_id.",
+      "role": "database",
+      "obligation_ids": ["O-data", "O-security"],
+      "concern_ids": ["C-security"],
+      "evidence_ids": ["E-security"]
+    }
+  ],
+  "dependencies": [
+    {
+      "predecessor_task_id": "T-data",
+      "successor_task_id": "T-api",
+      "kind": "requires_output",
+      "rationale": "API cần biết các trường và ràng buộc của schema database."
+    }
+  ],
+  "unassigned_obligation_ids": [],
+  "unassigned_concern_ids": []
+}
