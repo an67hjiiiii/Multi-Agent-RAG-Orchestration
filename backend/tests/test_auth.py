@@ -12,6 +12,7 @@ from app.api.auth import (
     YeuCauDangNhap,
     dang_ky_nguoi_dung,
     dang_nhap,
+    dang_xuat,
     kiem_tra_phien,
 )
 from app.core.security import bam_ma_phien, bam_mat_khau, xac_thuc_mat_khau
@@ -658,3 +659,343 @@ def test_get_session_loi_database_rollback_va_500():
     assert thong_tin_loi.value.status_code == 500
     assert thong_tin_loi.value.detail == "Lỗi hệ thống khi kiểm tra phiên đăng nhập"
     mock_db.rollback.assert_called_once()
+
+
+# =====================================================================
+# US3 — Logout & Session Invalidation Tests
+# =====================================================================
+
+
+def test_logout_thanh_cong(client: TestClient, db_session: Session):
+    nguoi_dung = User(
+        email="logout_success@example.com",
+        name="Logout User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    res_login = client.post(
+        "/api/auth/login",
+        json={"email": "logout_success@example.com", "password": "Password123"},
+    )
+    assert res_login.status_code == 200
+
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "authenticated": False}
+
+
+def test_logout_cookie_duoc_xoa(client: TestClient, db_session: Session):
+    nguoi_dung = User(
+        email="cookie_clear@example.com",
+        name="Clear Cookie User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    client.post(
+        "/api/auth/login",
+        json={"email": "cookie_clear@example.com", "password": "Password123"},
+    )
+    assert "capone_session" in client.cookies
+
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+
+    set_cookie_header = response.headers.get("set-cookie")
+    assert set_cookie_header is not None
+    header = set_cookie_header.lower()
+    assert "capone_session=" in header
+    assert "path=/" in header
+    assert "httponly" in header
+    assert "samesite=lax" in header
+    assert ("max-age=0" in header) or ("expires=" in header)
+    assert client.cookies.get("capone_session") is None
+
+
+def test_logout_database_da_revoke(client: TestClient, db_session: Session):
+    nguoi_dung = User(
+        email="db_revoke@example.com",
+        name="DB Revoke User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    client.post(
+        "/api/auth/login",
+        json={"email": "db_revoke@example.com", "password": "Password123"},
+    )
+    raw_token = client.cookies.get("capone_session")
+    assert raw_token is not None
+    ma_bam = bam_ma_phien(raw_token)
+
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+
+    phien_trong_db = db_session.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == ma_bam)
+    )
+    assert phien_trong_db is not None
+    assert phien_trong_db.thoi_gian_thu_hoi is not None
+    thoi_gian_thu_hoi = phien_trong_db.thoi_gian_thu_hoi
+    if thoi_gian_thu_hoi.tzinfo is None:
+        thoi_gian_thu_hoi = thoi_gian_thu_hoi.replace(tzinfo=timezone.utc)
+    assert thoi_gian_thu_hoi <= datetime.now(timezone.utc)
+
+
+def test_sau_logout_token_cu_khong_con_hop_le(client: TestClient, db_session: Session):
+    nguoi_dung = User(
+        email="reuse_token@example.com",
+        name="Reuse Token User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    client.post(
+        "/api/auth/login",
+        json={"email": "reuse_token@example.com", "password": "Password123"},
+    )
+    raw_token = client.cookies.get("capone_session")
+    assert raw_token is not None
+
+    res_logout = client.post("/api/auth/logout")
+    assert res_logout.status_code == 200
+
+    # Co tinh su dung lai token cu da bi logout
+    client.cookies.set("capone_session", raw_token)
+    res_session = client.get("/api/auth/session")
+    assert res_session.status_code == 200
+    assert res_session.json() == {"authenticated": False, "user": None}
+
+
+def test_logout_khong_co_cookie(client: TestClient):
+    client.cookies.clear()
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "authenticated": False}
+
+
+def test_logout_token_gia(client: TestClient):
+    client.cookies.set("capone_session", "fake_nonexistent_token_string_99999")
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "authenticated": False}
+
+
+def test_logout_nhieu_lan(client: TestClient, db_session: Session):
+    nguoi_dung = User(
+        email="multi_logout@example.com",
+        name="Multi Logout User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    client.post(
+        "/api/auth/login",
+        json={"email": "multi_logout@example.com", "password": "Password123"},
+    )
+
+    res1 = client.post("/api/auth/logout")
+    assert res1.status_code == 200
+    assert res1.json() == {"ok": True, "authenticated": False}
+
+    res2 = client.post("/api/auth/logout")
+    assert res2.status_code == 200
+    assert res2.json() == {"ok": True, "authenticated": False}
+
+
+def test_logout_phien_da_het_han(client: TestClient, db_session: Session):
+    nguoi_dung = User(
+        email="expired_logout@example.com",
+        name="Expired Logout User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    raw_token = "expired_logout_token_value"
+    thoi_diem_qua_khu = datetime.now(timezone.utc) - timedelta(minutes=15)
+    phien_het_han = PhienDangNhap(
+        ma_nguoi_dung=nguoi_dung.id,
+        ma_bam_phien=bam_ma_phien(raw_token),
+        thoi_gian_tao=thoi_diem_qua_khu - timedelta(minutes=60),
+        thoi_gian_het_han=thoi_diem_qua_khu,
+        thoi_gian_thu_hoi=None,
+    )
+    db_session.add(phien_het_han)
+    db_session.commit()
+
+    client.cookies.set("capone_session", raw_token)
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "authenticated": False}
+
+    db_session.refresh(phien_het_han)
+    assert phien_het_han.thoi_gian_thu_hoi is not None
+
+
+def test_logout_khong_anh_huong_phien_khac(client: TestClient, db_session: Session):
+    nguoi_dung = User(
+        email="multi_session@example.com",
+        name="Multi Session User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    # Dang nhap phien 1
+    client.post(
+        "/api/auth/login",
+        json={"email": "multi_session@example.com", "password": "Password123"},
+    )
+    token_1 = client.cookies.get("capone_session")
+    assert token_1 is not None
+
+    # Dang nhap phien 2
+    client.post(
+        "/api/auth/login",
+        json={"email": "multi_session@example.com", "password": "Password123"},
+    )
+    token_2 = client.cookies.get("capone_session")
+    assert token_2 is not None
+    assert token_1 != token_2
+
+    # Logout phien 2 (token_2 dang co trong client)
+    res_logout = client.post("/api/auth/logout")
+    assert res_logout.status_code == 200
+    assert res_logout.json() == {"ok": True, "authenticated": False}
+
+    # Kiem tra DB: phien 2 da revoke, phien 1 chua revoke
+    phien_1 = db_session.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == bam_ma_phien(token_1))
+    )
+    phien_2 = db_session.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == bam_ma_phien(token_2))
+    )
+    assert phien_1 is not None
+    assert phien_1.thoi_gian_thu_hoi is None
+    assert phien_2 is not None
+    assert phien_2.thoi_gian_thu_hoi is not None
+
+    # Kiem tra phien 1 van truy cap duoc API session
+    client.cookies.set("capone_session", token_1)
+    res_session = client.get("/api/auth/session")
+    assert res_session.status_code == 200
+    du_lieu_session = res_session.json()
+    assert du_lieu_session["authenticated"] is True
+    assert du_lieu_session["user"]["email"] == "multi_session@example.com"
+
+
+def test_logout_khong_anh_huong_nguoi_dung_khac(client: TestClient, db_session: Session):
+    nguoi_dung_a = User(
+        email="user_a@example.com",
+        name="User A",
+        password_hash=bam_mat_khau("PasswordA123"),
+        role="USER",
+    )
+    nguoi_dung_b = User(
+        email="user_b@example.com",
+        name="User B",
+        password_hash=bam_mat_khau("PasswordB123"),
+        role="USER",
+    )
+    db_session.add_all([nguoi_dung_a, nguoi_dung_b])
+    db_session.commit()
+
+    # Dang nhap User A
+    client.post(
+        "/api/auth/login",
+        json={"email": "user_a@example.com", "password": "PasswordA123"},
+    )
+    token_a = client.cookies.get("capone_session")
+    assert token_a is not None
+
+    # Dang nhap User B
+    client.post(
+        "/api/auth/login",
+        json={"email": "user_b@example.com", "password": "PasswordB123"},
+    )
+    token_b = client.cookies.get("capone_session")
+    assert token_b is not None
+    assert token_a != token_b
+
+    # Logout User A
+    client.cookies.set("capone_session", token_a)
+    res_logout_a = client.post("/api/auth/logout")
+    assert res_logout_a.status_code == 200
+    assert res_logout_a.json() == {"ok": True, "authenticated": False}
+
+    # Kiem tra trong DB: session cua User A bi revoke, session cua User B van hoat dong
+    phien_a = db_session.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == bam_ma_phien(token_a))
+    )
+    phien_b = db_session.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == bam_ma_phien(token_b))
+    )
+    assert phien_a is not None
+    assert phien_a.thoi_gian_thu_hoi is not None
+    assert phien_b is not None
+    assert phien_b.thoi_gian_thu_hoi is None
+
+    # Thu dung lai token_a goi /session -> phai bi tu choi
+    client.cookies.set("capone_session", token_a)
+    res_session_a = client.get("/api/auth/session")
+    assert res_session_a.status_code == 200
+    assert res_session_a.json() == {"authenticated": False, "user": None}
+
+    # Dung token_b goi /session -> van hop le, tra ve dung thong tin User B
+    client.cookies.set("capone_session", token_b)
+    res_session_b = client.get("/api/auth/session")
+    assert res_session_b.status_code == 200
+    du_lieu_b = res_session_b.json()
+    assert du_lieu_b["authenticated"] is True
+    assert du_lieu_b["user"]["id"] == nguoi_dung_b.id
+    assert du_lieu_b["user"]["email"] == "user_b@example.com"
+
+
+def test_logout_loi_database():
+    # Truong hop 1: Loi database o buoc query
+    mock_db_query_err = MagicMock(spec=Session)
+    mock_db_query_err.scalar.side_effect = SQLAlchemyError("Database query failed")
+    mock_request = MagicMock(spec=Request)
+    mock_request.cookies = {"capone_session": "any_valid_looking_token"}
+    mock_response = MagicMock(spec=Response)
+
+    with pytest.raises(HTTPException) as thong_tin_loi:
+        dang_xuat(request=mock_request, response=mock_response, db=mock_db_query_err)
+
+    assert thong_tin_loi.value.status_code == 500
+    assert thong_tin_loi.value.detail == "Lỗi hệ thống khi đăng xuất"
+    mock_db_query_err.rollback.assert_called_once()
+    mock_response.delete_cookie.assert_not_called()
+
+    # Truong hop 2: Loi database o buoc commit
+    mock_db_commit_err = MagicMock(spec=Session)
+    phien_ton_tai = PhienDangNhap(
+        ma_nguoi_dung=1,
+        ma_bam_phien=bam_ma_phien("any_valid_looking_token"),
+        thoi_gian_tao=datetime.now(timezone.utc),
+        thoi_gian_het_han=datetime.now(timezone.utc) + timedelta(minutes=60),
+        thoi_gian_thu_hoi=None,
+    )
+    mock_db_commit_err.scalar.return_value = phien_ton_tai
+    mock_db_commit_err.commit.side_effect = SQLAlchemyError("Database commit failure")
+
+    with pytest.raises(HTTPException) as thong_tin_loi_commit:
+        dang_xuat(request=mock_request, response=mock_response, db=mock_db_commit_err)
+
+    assert thong_tin_loi_commit.value.status_code == 500
+    assert thong_tin_loi_commit.value.detail == "Lỗi hệ thống khi đăng xuất"
+    mock_db_commit_err.rollback.assert_called_once()

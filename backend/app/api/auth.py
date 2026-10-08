@@ -54,6 +54,11 @@ class PhanHoiPhien(BaseModel):
     user: ThongTinNguoiDung | None
 
 
+class PhanHoiDangXuat(BaseModel):
+    ok: bool
+    authenticated: bool
+
+
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
@@ -266,4 +271,47 @@ def kiem_tra_phien(
             name=nguoi_dung.name,
             role=nguoi_dung.role,
         ),
+    )
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    response_model=PhanHoiDangXuat,
+)
+def dang_xuat(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    ma_phien_goc = request.cookies.get(settings.ten_cookie_phien)
+    if ma_phien_goc:
+        ma_bam = bam_ma_phien(ma_phien_goc)
+        try:
+            phien = db.scalar(
+                select(PhienDangNhap).where(
+                    PhienDangNhap.ma_bam_phien == ma_bam
+                )
+            )
+            if phien is not None and phien.thoi_gian_thu_hoi is None:
+                phien.thoi_gian_thu_hoi = datetime.now(timezone.utc)
+                db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Lỗi hệ thống khi đăng xuất",
+            )
+
+    response.delete_cookie(
+        key=settings.ten_cookie_phien,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_phien_an_toan,
+    )
+
+    return PhanHoiDangXuat(
+        ok=True,
+        authenticated=False,
     )
