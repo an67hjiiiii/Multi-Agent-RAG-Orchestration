@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 import pytest
-from fastapi import HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -14,7 +14,10 @@ from app.api.auth import (
     dang_nhap,
     dang_xuat,
     kiem_tra_phien,
+    lay_nguoi_dung_hien_tai,
+    router as auth_router,
 )
+from app.db.database import get_db
 from app.core.security import bam_ma_phien, bam_mat_khau, xac_thuc_mat_khau
 from app.models.session import PhienDangNhap
 from app.models.user import User
@@ -999,3 +1002,240 @@ def test_logout_loi_database():
     assert thong_tin_loi_commit.value.status_code == 500
     assert thong_tin_loi_commit.value.detail == "Lỗi hệ thống khi đăng xuất"
     mock_db_commit_err.rollback.assert_called_once()
+
+
+# =====================================================================
+# US4 — Account / Current Session & Protected Dependency Tests
+# =====================================================================
+
+
+def _tao_client_protected(db_session: Session) -> TestClient:
+    app_test = FastAPI()
+    app_test.include_router(auth_router)
+
+    @app_test.get("/api/test/protected")
+    def endpoint_bao_ve(user: User = Depends(lay_nguoi_dung_hien_tai)):
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+        }
+
+    app_test.dependency_overrides[get_db] = lambda: db_session
+    return TestClient(app_test)
+
+
+def test_protected_endpoint_session_hop_le(db_session: Session):
+    nguoi_dung = User(
+        email="protected_valid@example.com",
+        name="Valid User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    client_test = _tao_client_protected(db_session)
+    res_login = client_test.post(
+        "/api/auth/login",
+        json={"email": "protected_valid@example.com", "password": "Password123"},
+    )
+    assert res_login.status_code == 200
+
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 200
+    du_lieu = response.json()
+    assert du_lieu["id"] == nguoi_dung.id
+    assert du_lieu["email"] == "protected_valid@example.com"
+    assert du_lieu["name"] == "Valid User"
+    assert du_lieu["role"] == "USER"
+
+
+def test_protected_endpoint_khong_co_cookie(db_session: Session):
+    client_test = _tao_client_protected(db_session)
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_token_gia(db_session: Session):
+    client_test = _tao_client_protected(db_session)
+    client_test.cookies.set("capone_session", "fake_nonexistent_token_12345")
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_session_het_han(db_session: Session):
+    nguoi_dung = User(
+        email="protected_expired@example.com",
+        name="Expired User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    raw_token = "token_expired_for_protected"
+    thoi_diem_qua_khu = datetime.now(timezone.utc) - timedelta(minutes=10)
+    phien_het_han = PhienDangNhap(
+        ma_nguoi_dung=nguoi_dung.id,
+        ma_bam_phien=bam_ma_phien(raw_token),
+        thoi_gian_tao=thoi_diem_qua_khu - timedelta(minutes=60),
+        thoi_gian_het_han=thoi_diem_qua_khu,
+        thoi_gian_thu_hoi=None,
+    )
+    db_session.add(phien_het_han)
+    db_session.commit()
+
+    client_test = _tao_client_protected(db_session)
+    client_test.cookies.set("capone_session", raw_token)
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_session_da_revoke(db_session: Session):
+    nguoi_dung = User(
+        email="protected_revoked@example.com",
+        name="Revoked User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    db_session.add(nguoi_dung)
+    db_session.commit()
+
+    client_test = _tao_client_protected(db_session)
+    res_login = client_test.post(
+        "/api/auth/login",
+        json={"email": "protected_revoked@example.com", "password": "Password123"},
+    )
+    assert res_login.status_code == 200
+    raw_token = client_test.cookies.get("capone_session")
+    assert raw_token is not None
+
+    # Logout phien
+    res_logout = client_test.post("/api/auth/logout")
+    assert res_logout.status_code == 200
+
+    # Co tinh gui lai raw token cu da bi revoke
+    client_test.cookies.set("capone_session", raw_token)
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_ngan_chan_cross_user(db_session: Session):
+    nguoi_dung_a = User(
+        email="user_a_prot@example.com",
+        name="User A Prot",
+        password_hash=bam_mat_khau("PasswordA123"),
+        role="USER",
+    )
+    nguoi_dung_b = User(
+        email="user_b_prot@example.com",
+        name="User B Prot",
+        password_hash=bam_mat_khau("PasswordB123"),
+        role="USER",
+    )
+    db_session.add_all([nguoi_dung_a, nguoi_dung_b])
+    db_session.commit()
+
+    client_a = _tao_client_protected(db_session)
+    client_b = _tao_client_protected(db_session)
+
+    # Login User A tren client_a
+    res_a = client_a.post(
+        "/api/auth/login",
+        json={"email": "user_a_prot@example.com", "password": "PasswordA123"},
+    )
+    assert res_a.status_code == 200
+    token_a = client_a.cookies.get("capone_session")
+
+    # Login User B tren client_b
+    res_b = client_b.post(
+        "/api/auth/login",
+        json={"email": "user_b_prot@example.com", "password": "PasswordB123"},
+    )
+    assert res_b.status_code == 200
+    token_b = client_b.cookies.get("capone_session")
+    assert token_a != token_b
+
+    # Goi protected endpoint tu client_a -> chi nhan du lieu User A
+    prot_res_a = client_a.get("/api/test/protected")
+    assert prot_res_a.status_code == 200
+    assert prot_res_a.json()["id"] == nguoi_dung_a.id
+    assert prot_res_a.json()["email"] == "user_a_prot@example.com"
+
+    # Goi protected endpoint tu client_b -> chi nhan du lieu User B
+    prot_res_b = client_b.get("/api/test/protected")
+    assert prot_res_b.status_code == 200
+    assert prot_res_b.json()["id"] == nguoi_dung_b.id
+    assert prot_res_b.json()["email"] == "user_b_prot@example.com"
+
+
+def test_protected_endpoint_loi_database_rollback_va_500():
+    # Kiem tra truc tiep dependency voi mock database
+    mock_db = MagicMock(spec=Session)
+    mock_db.scalar.side_effect = SQLAlchemyError("Database query failed")
+    mock_request = MagicMock(spec=Request)
+    mock_request.cookies = {"capone_session": "valid_looking_token"}
+
+    with pytest.raises(HTTPException) as thong_tin_loi:
+        lay_nguoi_dung_hien_tai(request=mock_request, db=mock_db)
+
+    assert thong_tin_loi.value.status_code == 500
+    assert thong_tin_loi.value.detail == "Lỗi hệ thống khi xác thực phiên"
+    mock_db.rollback.assert_called_once()
+
+    # Kiem tra qua HTTP TestClient tren protected endpoint
+    mock_db_http = MagicMock(spec=Session)
+    mock_db_http.scalar.side_effect = SQLAlchemyError("Database query failed")
+    app_test = FastAPI()
+    app_test.dependency_overrides[get_db] = lambda: mock_db_http
+
+    @app_test.get("/api/test/protected")
+    def endpoint_bao_ve(user: User = Depends(lay_nguoi_dung_hien_tai)):
+        return {"id": user.id}
+
+    client_err = TestClient(app_test, raise_server_exceptions=False)
+    client_err.cookies.set("capone_session", "some_token")
+    res = client_err.get("/api/test/protected")
+    assert res.status_code == 500
+    assert res.json() == {"detail": "Lỗi hệ thống khi xác thực phiên"}
+    mock_db_http.rollback.assert_called_once()
+
+
+def test_protected_endpoint_khong_anh_huong_api_session_cu(db_session: Session):
+    client_test = _tao_client_protected(db_session)
+
+    # API /api/auth/session cu van giu nguyen HTTP 200 va authenticated=false
+    res_session = client_test.get("/api/auth/session")
+    assert res_session.status_code == 200
+    assert res_session.json() == {"authenticated": False, "user": None}
+
+    # Trong khi protected endpoint phai tu choi bang HTTP 401
+    res_protected = client_test.get("/api/test/protected")
+    assert res_protected.status_code == 401
+    assert res_protected.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_user_khong_ton_tai(db_session: Session):
+    raw_token = "token_for_missing_user"
+    thoi_diem_hien_tai = datetime.now(timezone.utc)
+    phien_orphaned = PhienDangNhap(
+        ma_nguoi_dung=99999,
+        ma_bam_phien=bam_ma_phien(raw_token),
+        thoi_gian_tao=thoi_diem_hien_tai,
+        thoi_gian_het_han=thoi_diem_hien_tai + timedelta(minutes=60),
+        thoi_gian_thu_hoi=None,
+    )
+    db_session.add(phien_orphaned)
+    db_session.commit()
+
+    client_test = _tao_client_protected(db_session)
+    client_test.cookies.set("capone_session", raw_token)
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}

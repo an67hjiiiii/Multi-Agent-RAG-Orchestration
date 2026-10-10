@@ -224,6 +224,54 @@ def dang_nhap(
     )
 
 
+def _tim_nguoi_dung_tu_phien(
+    request: Request,
+    db: Session,
+) -> User | None:
+    ma_phien_goc = request.cookies.get(settings.ten_cookie_phien)
+    if not ma_phien_goc:
+        return None
+
+    ma_bam = bam_ma_phien(ma_phien_goc)
+    thoi_diem_hien_tai = datetime.now(timezone.utc)
+
+    phien = db.scalar(
+        select(PhienDangNhap).where(
+            PhienDangNhap.ma_bam_phien == ma_bam,
+            PhienDangNhap.thoi_gian_thu_hoi.is_(None),
+            PhienDangNhap.thoi_gian_het_han > thoi_diem_hien_tai,
+        )
+    )
+    if phien is None:
+        return None
+
+    return db.scalar(
+        select(User).where(User.id == phien.ma_nguoi_dung)
+    )
+
+
+def lay_nguoi_dung_hien_tai(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    try:
+        nguoi_dung = _tim_nguoi_dung_tu_phien(request, db)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Lỗi hệ thống khi xác thực phiên",
+        )
+
+    if nguoi_dung is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Chưa xác thực hoặc phiên không hợp lệ",
+        )
+
+    return nguoi_dung
+
+
 @router.get(
     "/session",
     status_code=status.HTTP_200_OK,
@@ -233,35 +281,17 @@ def kiem_tra_phien(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    ma_phien_goc = request.cookies.get(settings.ten_cookie_phien)
-    if not ma_phien_goc:
-        return PhanHoiPhien(authenticated=False, user=None)
-
-    ma_bam = bam_ma_phien(ma_phien_goc)
-    thoi_diem_hien_tai = datetime.now(timezone.utc)
-
     try:
-        phien = db.scalar(
-            select(PhienDangNhap).where(
-                PhienDangNhap.ma_bam_phien == ma_bam,
-                PhienDangNhap.thoi_gian_thu_hoi.is_(None),
-                PhienDangNhap.thoi_gian_het_han > thoi_diem_hien_tai,
-            )
-        )
-        if phien is None:
-            return PhanHoiPhien(authenticated=False, user=None)
-
-        nguoi_dung = db.scalar(
-            select(User).where(User.id == phien.ma_nguoi_dung)
-        )
-        if nguoi_dung is None:
-            return PhanHoiPhien(authenticated=False, user=None)
+        nguoi_dung = _tim_nguoi_dung_tu_phien(request, db)
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Lỗi hệ thống khi kiểm tra phiên đăng nhập",
         )
+
+    if nguoi_dung is None:
+        return PhanHoiPhien(authenticated=False, user=None)
 
     return PhanHoiPhien(
         authenticated=True,

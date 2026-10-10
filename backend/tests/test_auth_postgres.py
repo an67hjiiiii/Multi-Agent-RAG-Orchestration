@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import os
 from uuid import uuid4
 import pytest
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.engine import make_url
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.security import bam_ma_phien, bam_mat_khau, xac_thuc_mat_khau
 from app.db.database import get_db
+from app.api.auth import lay_nguoi_dung_hien_tai, router as auth_router
 from app.main import app
 from app.models.session import PhienDangNhap
 from app.models.user import User
@@ -626,3 +628,224 @@ def test_logout_khong_anh_huong_phien_khac_tren_postgres(
     assert res_session.status_code == 200
     assert res_session.json()["authenticated"] is True
     assert res_session.json()["user"]["id"] == user_id
+
+
+# =====================================================================
+# US4 — PostgreSQL Integration Tests for Protected Dependency
+# =====================================================================
+
+
+def _tao_client_postgres_protected(session_postgres: Session) -> TestClient:
+    app_test = FastAPI()
+    app_test.include_router(auth_router)
+
+    @app_test.get("/api/test/protected")
+    def endpoint_bao_ve(user: User = Depends(lay_nguoi_dung_hien_tai)):
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+        }
+
+    app_test.dependency_overrides[get_db] = lambda: session_postgres
+    return TestClient(app_test)
+
+
+def test_protected_endpoint_session_hop_le_tren_postgres(
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    email_test = f"prot_valid_pg_{uuid4().hex[:8]}@example.com"
+    mat_khau = "PasswordPgProt123"
+
+    client_test = _tao_client_postgres_protected(session_postgres)
+    res_reg = client_test.post(
+        "/api/auth/register",
+        json={
+            "email": email_test,
+            "name": "Prot Valid PG",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    res_login = client_test.post(
+        "/api/auth/login",
+        json={
+            "email": email_test,
+            "password": mat_khau,
+        },
+    )
+    assert res_login.status_code == 200
+
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 200
+    du_lieu = response.json()
+    assert du_lieu["id"] == user_id
+    assert du_lieu["email"] == email_test
+    assert du_lieu["name"] == "Prot Valid PG"
+    assert du_lieu["role"] == "USER"
+
+
+def test_protected_endpoint_khong_co_cookie_tren_postgres(
+    session_postgres: Session,
+):
+    client_test = _tao_client_postgres_protected(session_postgres)
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_token_gia_tren_postgres(
+    session_postgres: Session,
+):
+    client_test = _tao_client_postgres_protected(session_postgres)
+    client_test.cookies.set("capone_session", "fake_pg_token_not_in_db_99999")
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_session_het_han_tren_postgres(
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    email_test = f"prot_expired_pg_{uuid4().hex[:8]}@example.com"
+    mat_khau = "PasswordPgExp123"
+
+    client_test = _tao_client_postgres_protected(session_postgres)
+    res_reg = client_test.post(
+        "/api/auth/register",
+        json={
+            "email": email_test,
+            "name": "Prot Expired PG",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    res_login = client_test.post(
+        "/api/auth/login",
+        json={
+            "email": email_test,
+            "password": mat_khau,
+        },
+    )
+    assert res_login.status_code == 200
+    raw_token = client_test.cookies.get("capone_session")
+    assert raw_token is not None
+
+    # Dieu chinh thoi gian het han trong PostgreSQL cho phien nay
+    ma_bam = bam_ma_phien(raw_token)
+    phien = session_postgres.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == ma_bam)
+    )
+    assert phien is not None
+    phien.thoi_gian_het_han = datetime.now(timezone.utc) - timedelta(minutes=5)
+    session_postgres.commit()
+
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_session_da_logout_tren_postgres(
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    email_test = f"prot_revoked_pg_{uuid4().hex[:8]}@example.com"
+    mat_khau = "PasswordPgRev123"
+
+    client_test = _tao_client_postgres_protected(session_postgres)
+    res_reg = client_test.post(
+        "/api/auth/register",
+        json={
+            "email": email_test,
+            "name": "Prot Revoked PG",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    res_login = client_test.post(
+        "/api/auth/login",
+        json={
+            "email": email_test,
+            "password": mat_khau,
+        },
+    )
+    assert res_login.status_code == 200
+    raw_token = client_test.cookies.get("capone_session")
+    assert raw_token is not None
+
+    # Logout phien
+    res_logout = client_test.post("/api/auth/logout")
+    assert res_logout.status_code == 200
+
+    # Gui lai raw token cu den protected endpoint
+    client_test.cookies.set("capone_session", raw_token)
+    response = client_test.get("/api/test/protected")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Chưa xác thực hoặc phiên không hợp lệ"}
+
+
+def test_protected_endpoint_ngan_chan_cross_user_tren_postgres(
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    email_a = f"user_a_pg_{uuid4().hex[:8]}@example.com"
+    email_b = f"user_b_pg_{uuid4().hex[:8]}@example.com"
+    mat_khau = "PasswordPgCross123"
+
+    client_a = _tao_client_postgres_protected(session_postgres)
+    client_b = _tao_client_postgres_protected(session_postgres)
+
+    # Dang ky va dang nhap User A
+    res_reg_a = client_a.post(
+        "/api/auth/register",
+        json={"email": email_a, "name": "User A PG", "password": mat_khau},
+    )
+    assert res_reg_a.status_code == 201
+    user_id_a = res_reg_a.json()["id"]
+    danh_sach_id.append(user_id_a)
+
+    res_login_a = client_a.post(
+        "/api/auth/login",
+        json={"email": email_a, "password": mat_khau},
+    )
+    assert res_login_a.status_code == 200
+
+    # Dang ky va dang nhap User B
+    res_reg_b = client_b.post(
+        "/api/auth/register",
+        json={"email": email_b, "name": "User B PG", "password": mat_khau},
+    )
+    assert res_reg_b.status_code == 201
+    user_id_b = res_reg_b.json()["id"]
+    danh_sach_id.append(user_id_b)
+
+    res_login_b = client_b.post(
+        "/api/auth/login",
+        json={"email": email_b, "password": mat_khau},
+    )
+    assert res_login_b.status_code == 200
+
+    # Goi protected endpoint tu client_a -> tra ve dung User A
+    res_prot_a = client_a.get("/api/test/protected")
+    assert res_prot_a.status_code == 200
+    assert res_prot_a.json()["id"] == user_id_a
+    assert res_prot_a.json()["email"] == email_a
+
+    # Goi protected endpoint tu client_b -> tra ve dung User B
+    res_prot_b = client_b.get("/api/test/protected")
+    assert res_prot_b.status_code == 200
+    assert res_prot_b.json()["id"] == user_id_b
+    assert res_prot_b.json()["email"] == email_b
+    assert user_id_a != user_id_b
