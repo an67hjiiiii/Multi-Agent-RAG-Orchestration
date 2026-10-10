@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.knowledge import router as knowledge_router
 from app.core.config import settings
 
 
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
 
     application.include_router(health_router)
     application.include_router(auth_router)
+    application.include_router(knowledge_router)
     return application
 
 
