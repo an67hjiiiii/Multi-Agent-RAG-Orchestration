@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
 import os
+from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, delete, select
@@ -466,3 +467,162 @@ def test_get_session_bi_revoke_tren_postgres(
     response = client_postgres.get("/api/auth/session")
     assert response.status_code == 200
     assert response.json() == {"authenticated": False, "user": None}
+
+
+# =====================================================================
+# US3 — PostgreSQL Integration Tests for Logout
+# =====================================================================
+
+
+def test_logout_thanh_cong_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    email_test = f"logout_pg_{uuid4().hex[:8]}@example.com"
+    mat_khau = "PasswordPgLogout123"
+    res_reg = client_postgres.post(
+        "/api/auth/register",
+        json={
+            "email": email_test,
+            "name": "Logout PG User",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    res_login = client_postgres.post(
+        "/api/auth/login",
+        json={
+            "email": email_test,
+            "password": mat_khau,
+        },
+    )
+    assert res_login.status_code == 200
+    raw_token = client_postgres.cookies.get("capone_session")
+    assert raw_token is not None
+    ma_bam = bam_ma_phien(raw_token)
+
+    response = client_postgres.post("/api/auth/logout")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "authenticated": False}
+
+    # Kiem tra cookie capone_session bi xoa
+    set_cookie_header = response.headers.get("set-cookie")
+    assert set_cookie_header is not None
+    header = set_cookie_header.lower()
+    assert "capone_session=" in header
+    assert ("max-age=0" in header) or ("expires=" in header)
+    assert client_postgres.cookies.get("capone_session") is None
+
+    # Kiem tra ban ghi auth_sessions co revoked_at hop le trong PostgreSQL
+    phien_trong_db = session_postgres.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == ma_bam)
+    )
+    assert phien_trong_db is not None
+    assert phien_trong_db.thoi_gian_thu_hoi is not None
+    assert phien_trong_db.thoi_gian_thu_hoi.tzinfo is not None
+    assert phien_trong_db.thoi_gian_thu_hoi <= datetime.now(timezone.utc)
+
+
+def test_sau_logout_token_cu_khong_the_su_dung_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    email_test = f"old_token_pg_{uuid4().hex[:8]}@example.com"
+    mat_khau = "PasswordPgOldToken123"
+    res_reg = client_postgres.post(
+        "/api/auth/register",
+        json={
+            "email": email_test,
+            "name": "Old Token PG User",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    res_login = client_postgres.post(
+        "/api/auth/login",
+        json={
+            "email": email_test,
+            "password": mat_khau,
+        },
+    )
+    assert res_login.status_code == 200
+    raw_token = client_postgres.cookies.get("capone_session")
+    assert raw_token is not None
+
+    res_logout = client_postgres.post("/api/auth/logout")
+    assert res_logout.status_code == 200
+
+    # Gui lai dung raw token cu den GET /api/auth/session tren PostgreSQL
+    client_postgres.cookies.set("capone_session", raw_token)
+    res_session = client_postgres.get("/api/auth/session")
+    assert res_session.status_code == 200
+    assert res_session.json() == {"authenticated": False, "user": None}
+
+
+def test_logout_khong_anh_huong_phien_khac_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    email_test = f"multi_pg_{uuid4().hex[:8]}@example.com"
+    mat_khau = "PasswordPgMulti123"
+    res_reg = client_postgres.post(
+        "/api/auth/register",
+        json={
+            "email": email_test,
+            "name": "Multi PG User",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    # Dang nhap phien 1
+    client_postgres.post(
+        "/api/auth/login",
+        json={"email": email_test, "password": mat_khau},
+    )
+    token_1 = client_postgres.cookies.get("capone_session")
+    assert token_1 is not None
+
+    # Dang nhap phien 2
+    client_postgres.post(
+        "/api/auth/login",
+        json={"email": email_test, "password": mat_khau},
+    )
+    token_2 = client_postgres.cookies.get("capone_session")
+    assert token_2 is not None
+    assert token_1 != token_2
+
+    # Logout phien 2
+    res_logout = client_postgres.post("/api/auth/logout")
+    assert res_logout.status_code == 200
+    assert res_logout.json() == {"ok": True, "authenticated": False}
+
+    # Kiem tra trong DB: chi co phien 2 bi revoke, phien 1 chua revoke
+    phien_1 = session_postgres.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == bam_ma_phien(token_1))
+    )
+    phien_2 = session_postgres.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_bam_phien == bam_ma_phien(token_2))
+    )
+    assert phien_1 is not None
+    assert phien_1.thoi_gian_thu_hoi is None
+    assert phien_2 is not None
+    assert phien_2.thoi_gian_thu_hoi is not None
+
+    # Kiem tra phien 1 van truy cap duoc /session tren PostgreSQL
+    client_postgres.cookies.set("capone_session", token_1)
+    res_session = client_postgres.get("/api/auth/session")
+    assert res_session.status_code == 200
+    assert res_session.json()["authenticated"] is True
+    assert res_session.json()["user"]["id"] == user_id
