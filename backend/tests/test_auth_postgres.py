@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import datetime, timedelta, timezone
 import os
 import pytest
 from fastapi.testclient import TestClient
@@ -6,9 +7,10 @@ from sqlalchemy import create_engine, delete, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.security import xac_thuc_mat_khau
+from app.core.security import bam_ma_phien, bam_mat_khau, xac_thuc_mat_khau
 from app.db.database import get_db
 from app.main import app
+from app.models.session import PhienDangNhap
 from app.models.user import User
 
 
@@ -242,3 +244,225 @@ def test_luu_va_doc_chinh_xac_tren_postgres(
     assert danh_sach_db[0].name == "User Mot"
     assert danh_sach_db[1].email == "user2_pg@example.com"
     assert danh_sach_db[1].name == "User Hai"
+
+
+# =====================================================================
+# US2 — PostgreSQL Integration Tests for Login & Session
+# =====================================================================
+
+
+def test_login_thanh_cong_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    mat_khau = "PasswordPg123"
+    res_reg = client_postgres.post(
+        "/api/auth/register",
+        json={
+            "email": "login_pg@example.com",
+            "name": "Login PG User",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    response = client_postgres.post(
+        "/api/auth/login",
+        json={
+            "email": "login_pg@example.com",
+            "password": mat_khau,
+        },
+    )
+    assert response.status_code == 200
+    du_lieu = response.json()
+    assert du_lieu["authenticated"] is True
+    assert du_lieu["user"]["id"] == user_id
+    assert du_lieu["user"]["email"] == "login_pg@example.com"
+    assert "capone_session" in client_postgres.cookies
+
+    # JSON response khong duoc chua raw token, hash token hoac hash password
+    assert "token" not in du_lieu
+    assert "capone_session" not in du_lieu
+    assert "token_hash" not in du_lieu
+    assert "password_hash" not in du_lieu
+    assert "password" not in du_lieu["user"]
+
+
+def test_sau_login_postgres_luu_token_hash_va_khong_luu_token_goc(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    mat_khau = "PasswordPgHash123"
+    res_reg = client_postgres.post(
+        "/api/auth/register",
+        json={
+            "email": "hash_pg@example.com",
+            "name": "Hash PG User",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    response = client_postgres.post(
+        "/api/auth/login",
+        json={
+            "email": "hash_pg@example.com",
+            "password": mat_khau,
+        },
+    )
+    assert response.status_code == 200
+
+    raw_token = client_postgres.cookies.get("capone_session")
+    assert raw_token is not None
+
+    phien_trong_db = session_postgres.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_nguoi_dung == user_id)
+    )
+    assert phien_trong_db is not None
+    assert phien_trong_db.ma_bam_phien == bam_ma_phien(raw_token)
+    assert phien_trong_db.ma_bam_phien != raw_token
+    assert len(phien_trong_db.ma_bam_phien) == 64
+
+
+def test_get_session_hop_le_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    mat_khau = "PasswordPgSession123"
+    res_reg = client_postgres.post(
+        "/api/auth/register",
+        json={
+            "email": "session_valid_pg@example.com",
+            "name": "Session Valid PG",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    res_login = client_postgres.post(
+        "/api/auth/login",
+        json={
+            "email": "session_valid_pg@example.com",
+            "password": mat_khau,
+        },
+    )
+    assert res_login.status_code == 200
+
+    response = client_postgres.get("/api/auth/session")
+    assert response.status_code == 200
+    du_lieu = response.json()
+    assert du_lieu["authenticated"] is True
+    assert du_lieu["user"]["id"] == user_id
+    assert du_lieu["user"]["email"] == "session_valid_pg@example.com"
+    assert du_lieu["user"]["name"] == "Session Valid PG"
+    assert du_lieu["user"]["role"] == "USER"
+
+
+def test_login_sai_password_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    mat_khau = "PasswordPgCorrect123"
+    res_reg = client_postgres.post(
+        "/api/auth/register",
+        json={
+            "email": "wrong_pass_pg@example.com",
+            "name": "Wrong Pass PG",
+            "password": mat_khau,
+        },
+    )
+    assert res_reg.status_code == 201
+    user_id = res_reg.json()["id"]
+    danh_sach_id.append(user_id)
+
+    response = client_postgres.post(
+        "/api/auth/login",
+        json={
+            "email": "wrong_pass_pg@example.com",
+            "password": "WrongPassword999",
+        },
+    )
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid credentials"}
+    assert "capone_session" not in client_postgres.cookies
+
+    phien_trong_db = session_postgres.scalar(
+        select(PhienDangNhap).where(PhienDangNhap.ma_nguoi_dung == user_id)
+    )
+    assert phien_trong_db is None
+
+
+def test_get_session_het_han_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    nguoi_dung = User(
+        email="expired_pg@example.com",
+        name="Expired PG User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    session_postgres.add(nguoi_dung)
+    session_postgres.commit()
+    danh_sach_id.append(nguoi_dung.id)
+
+    raw_token = "pg_expired_token_test_123"
+    thoi_diem_qua_khu = datetime.now(timezone.utc) - timedelta(minutes=10)
+    phien_het_han = PhienDangNhap(
+        ma_nguoi_dung=nguoi_dung.id,
+        ma_bam_phien=bam_ma_phien(raw_token),
+        thoi_gian_tao=thoi_diem_qua_khu - timedelta(minutes=60),
+        thoi_gian_het_han=thoi_diem_qua_khu,
+        thoi_gian_thu_hoi=None,
+    )
+    session_postgres.add(phien_het_han)
+    session_postgres.commit()
+
+    client_postgres.cookies.set("capone_session", raw_token)
+    response = client_postgres.get("/api/auth/session")
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": False, "user": None}
+
+
+def test_get_session_bi_revoke_tren_postgres(
+    client_postgres: TestClient,
+    session_postgres: Session,
+    danh_sach_id: list[int],
+):
+    nguoi_dung = User(
+        email="revoked_pg@example.com",
+        name="Revoked PG User",
+        password_hash=bam_mat_khau("Password123"),
+        role="USER",
+    )
+    session_postgres.add(nguoi_dung)
+    session_postgres.commit()
+    danh_sach_id.append(nguoi_dung.id)
+
+    raw_token = "pg_revoked_token_test_123"
+    thoi_diem_hien_tai = datetime.now(timezone.utc)
+    phien_bi_revoke = PhienDangNhap(
+        ma_nguoi_dung=nguoi_dung.id,
+        ma_bam_phien=bam_ma_phien(raw_token),
+        thoi_gian_tao=thoi_diem_hien_tai - timedelta(minutes=5),
+        thoi_gian_het_han=thoi_diem_hien_tai + timedelta(minutes=55),
+        thoi_gian_thu_hoi=thoi_diem_hien_tai,
+    )
+    session_postgres.add(phien_bi_revoke)
+    session_postgres.commit()
+
+    client_postgres.cookies.set("capone_session", raw_token)
+    response = client_postgres.get("/api/auth/session")
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": False, "user": None}
