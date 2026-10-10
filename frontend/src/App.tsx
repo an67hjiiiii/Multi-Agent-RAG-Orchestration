@@ -1,13 +1,29 @@
 import { useState } from "react";
 import LoginForm from "./components/LoginForm";
 import RegisterForm from "./components/RegisterForm";
+import { ApiError, logoutUser } from "./lib/api";
 import type { LoginResponse, RegisterResponse } from "./lib/api";
 
 export default function App() {
   const [registeredUser, setRegisteredUser] = useState<RegisterResponse | null>(null);
   const [screen, setScreen] = useState<"register" | "login">("register");
   const [loginResponse, setLoginResponse] = useState<LoginResponse | null>(null);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  async function handleLogout() {
+    setLogoutError(null);
+    setIsLoggingOut(true);
+    try {
+      await logoutUser();
+      setLoginResponse(null);
+      setScreen("login");
+    } catch (cause) {
+      setLogoutError(cause instanceof ApiError ? cause.message : "Không thể đăng xuất. Vui lòng thử lại.");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }
   return (
     <main className="app-shell">
       <header className="brand" aria-label="Multi-Agent RAG Orchestration">
@@ -22,7 +38,15 @@ export default function App() {
           <p role="status">
             Bạn đã đăng nhập với tài khoản {loginResponse.user.email}.
           </p>
-          <p className="login-note">Phiên đăng nhập được quản lý bởi HttpOnly cookie của máy chủ.</p>
+          <p className="login-note">Phiên đăng nhập được quản lý bởi HttpOnly cookie của máy chủ.</p>          {logoutError && <p role="alert" className="form-error">{logoutError}</p>}
+          <button
+            className="secondary-button"
+            onClick={() => void handleLogout()}
+            disabled={isLoggingOut}
+            type="button"
+          >
+            {isLoggingOut ? "Đang đăng xuất…" : "Đăng xuất"}
+          </button>
           <button
             className="secondary-button"
             onClick={() => {

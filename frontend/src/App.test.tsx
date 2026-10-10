@@ -198,3 +198,75 @@ describe("Login UI", () => {
     expect(screen.getByLabelText("Email")).toHaveProperty("value", "viet@example.com");
   });
 });
+
+describe("Logout UI", () => {
+  it("posts to the backend logout endpoint and returns to the login form", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(successfulLoginResponse())
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ ok: true, authenticated: false }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    await openLoginForm();
+    await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(await screen.findByRole("heading", { name: "Chào mừng trở lại" })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
+
+    expect(await screen.findByRole("heading", { name: "Đăng nhập" })).toBeTruthy();
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/auth/logout");
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST", credentials: "include" });
+  });
+
+  it("disables the logout button while the request is pending", async () => {
+    let resolveLogout!: (response: Response) => void;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(successfulLoginResponse())
+      .mockReturnValueOnce(new Promise<Response>((resolve) => { resolveLogout = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    await openLoginForm();
+    await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    await screen.findByRole("heading", { name: "Chào mừng trở lại" });
+
+    const logoutButton = screen.getByRole("button", { name: "Đăng xuất" });
+    await userEvent.click(logoutButton);
+    expect(await screen.findByRole("button", { name: "Đang đăng xuất…" })).toHaveProperty("disabled", true);
+
+    resolveLogout(new Response(
+      JSON.stringify({ ok: true, authenticated: false }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    expect(await screen.findByRole("heading", { name: "Đăng nhập" })).toBeTruthy();
+  });
+
+  it("shows an API error while keeping the authenticated view", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(successfulLoginResponse())
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ detail: "Logout unavailable" }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    await openLoginForm();
+    await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    await screen.findByRole("heading", { name: "Chào mừng trở lại" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
+
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Đăng xuất không thành công. Vui lòng thử lại.",
+    );
+    expect(screen.getByRole("heading", { name: "Chào mừng trở lại" })).toBeTruthy();
+  });
+});
