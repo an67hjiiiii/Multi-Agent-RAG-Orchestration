@@ -33,6 +33,14 @@ class Settings:
         "1",
         "yes",
     )
+    upload_dir: Path = Path(
+        getenv("UPLOAD_DIR", str(_root_dir / "storage" / "uploads"))
+    )
+    max_upload_size_bytes: int = int(
+        getenv("MAX_UPLOAD_SIZE_BYTES", str(10 * 1024 * 1024))
+    )
+    allowed_extensions: tuple[str, ...] = (".txt", ".md", ".pdf")
+
 
 
 settings = Settings()
