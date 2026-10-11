@@ -1,18 +1,8 @@
-"""Synchronous execution contracts without scheduling or model integration."""
-
 from enum import Enum
-from typing import Annotated, Protocol
-
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from typing import Protocol, Optional
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.retrieval.contracts import Evidence
-
-
-NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-
-
-class ExecutionModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 class ExecutionStatus(str, Enum):
@@ -25,31 +15,38 @@ class ExecutionStatus(str, Enum):
 
 class LLMPort(Protocol):
     def generate(self, prompt: str) -> str:
-        """Return text or raise an execution error synchronously."""
         ...
 
 
-class WorkerInput(ExecutionModel):
-    task_id: NonBlank
-    instruction: NonBlank
-    evidence: list[Evidence]
+class WorkerInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str = Field(min_length=1)
+    instruction: str = Field(min_length=1)
+    evidence: list[Evidence] = Field(default_factory=list)
 
 
-class WorkerOutput(ExecutionModel):
-    task_id: NonBlank
+class WorkerOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str = Field(min_length=1)
     status: ExecutionStatus
-    answer: str
-    evidence_ids: list[NonBlank]
-    error: NonBlank | None
+    answer: str = ""
+    evidence_ids: list[str] = Field(default_factory=list)
+    error: Optional[str] = None
 
 
-class TraceEvent(ExecutionModel):
-    task_id: NonBlank
-    event: NonBlank
-    message: NonBlank
+class TraceEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str = Field(min_length=1)
+    event: str = Field(min_length=1)
+    message: str = Field(min_length=1)
 
 
-class ExecutionResult(ExecutionModel):
+class ExecutionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     status: ExecutionStatus
-    outputs: list[WorkerOutput]
-    trace: list[TraceEvent]
+    outputs: list[WorkerOutput] = Field(default_factory=list)
+    trace: list[TraceEvent] = Field(default_factory=list)
