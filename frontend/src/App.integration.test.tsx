@@ -7,7 +7,7 @@ const runtime = globalThis as typeof globalThis & { process?: { env?: Record<str
 const integrationBaseUrl = runtime.process?.env?.REGISTER_INTEGRATION_BASE_URL;
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
-describe.skipIf(!integrationBaseUrl)("Register UI with local backend", () => {
+describe.skipIf(!integrationBaseUrl)("Auth UI with local backend", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
       const requestPath = typeof input === "string" ? input : input.toString();
@@ -27,11 +27,22 @@ describe.skipIf(!integrationBaseUrl)("Register UI with local backend", () => {
     await userEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
   }
 
-  it("submits the Register form through Vite to FastAPI and shows the login state after HTTP 201", async () => {
+  it("submits the Register form through Vite to FastAPI and shows the login form after HTTP 201", async () => {
     const email = `register-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
     render(<App />);
     await fillForm(email);
-    expect(await screen.findByRole("heading", { name: "Tiếp tục đăng nhập" }, { timeout: 10_000 })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Đăng nhập" }, { timeout: 10_000 })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain(email);
+  });
+
+  it("logs in through Vite to FastAPI and shows the authenticated user", async () => {
+    const email = `login-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
+    render(<App />);
+    await fillForm(email);
+    expect(await screen.findByRole("heading", { name: "Đăng nhập" }, { timeout: 10_000 })).toBeTruthy();
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(await screen.findByRole("heading", { name: "Chào mừng trở lại" }, { timeout: 10_000 })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain(email);
   });
 

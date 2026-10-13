@@ -40,8 +40,11 @@ h1 { margin: 0; color: #142033; font-size: 29px; letter-spacing: -.04em; line-he
 .primary-button:hover:not(:disabled) { background: #2548bd; }
 .primary-button:active:not(:disabled) { transform: translateY(1px); }
 .primary-button:disabled { cursor: wait; opacity: .72; }
+.form-actions { display: flex; gap: 12px; margin-top: 3px; }
+.form-actions .primary-button, .form-actions .secondary-button { flex: 1; margin-top: 0; }
+.text-button { padding: 0; border: 0; color: #3157d5; background: transparent; cursor: pointer; font: inherit; font-weight: 650; }
+.text-button:hover { text-decoration: underline; }
 .form-footer { margin: 22px 0 0; color: #718096; text-align: center; font-size: 13px; }
-.form-footer span { color: #3157d5; font-weight: 650; }
 .login-placeholder h1 { margin-bottom: 12px; }
 .login-note { padding-top: 12px; border-top: 1px solid #edf0f5; font-size: 13px !important; }
 .secondary-button { width: 100%; margin-top: 24px; color: #3157d5; background: #eef2ff; }
@@ -51,4 +54,5 @@ h1 { margin: 0; color: #142033; font-size: 29px; letter-spacing: -.04em; line-he
   .app-shell { padding: 20px 16px 16px; }
   .register-card { padding: 30px 24px 26px; border-radius: 14px; }
   .brand { font-size: 12px; }
+  .form-actions { flex-direction: column-reverse; }
 }

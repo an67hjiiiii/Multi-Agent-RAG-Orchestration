@@ -20,15 +20,27 @@ function successfulResponse() {
   }), { status: 201, headers: { "Content-Type": "application/json" } });
 }
 
+function successfulLoginResponse() {
+  return new Response(JSON.stringify({
+    authenticated: true,
+    user: { id: 1, email: "viet@example.com", name: "Nguyen Van A", role: "USER" },
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+async function openLoginForm() {
+  await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+  expect(await screen.findByRole("heading", { name: "Đăng nhập" })).toBeTruthy();
+}
+
 describe("Register UI", () => {
-  it("sends the backend contract and moves to the login placeholder after HTTP 201", async () => {
+  it("sends the backend contract and moves to the login form after HTTP 201", async () => {
     const fetchMock = vi.fn().mockResolvedValue(successfulResponse());
     vi.stubGlobal("fetch", fetchMock);
     render(<App />);
     await fillValidForm();
     await userEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
-    expect(await screen.findByRole("heading", { name: "Tiếp tục đăng nhập" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Đăng nhập" })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/auth/register");
     expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
@@ -108,6 +120,81 @@ describe("Register UI", () => {
     fireEvent.submit(submit.closest("form")!);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveRequest(successfulResponse());
-    expect(await screen.findByRole("heading", { name: "Tiếp tục đăng nhập" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Đăng nhập" })).toBeTruthy();
+  });
+});
+
+describe("Login UI", () => {
+  it("sends email and password, includes credentials, and shows the authenticated user", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(successfulLoginResponse());
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    await openLoginForm();
+    await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    expect(await screen.findByRole("heading", { name: "Chào mừng trở lại" })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/auth/login");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      email: "viet@example.com",
+      password: "Password123",
+    });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: "POST",
+      credentials: "include",
+    });
+  });
+
+  it.each([
+    ["email", "not-an-email", "Vui lòng nhập email hợp lệ."],
+    ["password", "   ", "Mật khẩu không được để trống."],
+  ])("rejects invalid %s before sending a request", async (field, value, message) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    await openLoginForm();
+    await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
+    const input = screen.getByLabelText(field === "email" ? "Email" : "Mật khẩu");
+    await userEvent.clear(input);
+    await userEvent.type(input, value);
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a friendly message for invalid credentials", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ detail: "Invalid credentials" }),
+      { status: 401, headers: { "Content-Type": "application/json" } },
+    )));
+    render(<App />);
+    await openLoginForm();
+    await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "WrongPassword");
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Email hoặc mật khẩu không đúng.",
+    );
+  });
+
+  it("shows a network failure without losing the login form", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    render(<App />);
+    await openLoginForm();
+    await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Không thể kết nối máy chủ. Vui lòng thử lại.",
+    );
+    expect(screen.getByLabelText("Email")).toHaveProperty("value", "viet@example.com");
   });
 });
