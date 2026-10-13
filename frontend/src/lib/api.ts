@@ -11,6 +11,23 @@ export type RegisterResponse = {
   message: string;
 };
 
+export type LoginRequest = {
+  email: string;
+  password: string;
+};
+
+export type AuthenticatedUser = {
+  id: number;
+  email: string;
+  name: string | null;
+  role: string;
+};
+
+export type LoginResponse = {
+  authenticated: boolean;
+  user: AuthenticatedUser;
+};
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -51,4 +68,35 @@ export async function registerUser(
   }
 
   return (await response.json()) as RegisterResponse;
+}
+
+export async function loginUser(request: LoginRequest): Promise<LoginResponse> {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(request),
+    });
+  } catch {
+    throw new ApiError("Không thể kết nối máy chủ. Vui lòng thử lại.", 0);
+  }
+
+  if (!response.ok) {
+    let message = "Đăng nhập không thành công. Vui lòng thử lại.";
+    try {
+      const body: { detail?: unknown } = await response.json();
+      if (response.status === 401) {
+        message = "Email hoặc mật khẩu không đúng.";
+      } else if (response.status < 500 && typeof body.detail === "string") {
+        message = body.detail;
+      }
+    } catch {
+      // Keep the friendly fallback when the server response is not JSON.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return (await response.json()) as LoginResponse;
 }
