@@ -162,3 +162,44 @@ export async function logoutUser(): Promise<LogoutResponse> {
 
   return (await response.json()) as LogoutResponse;
 }
+export type KnowledgeUploadResponse = {
+  id: number;
+  filename: string;
+  file_size: number;
+  mime_type: string;
+  status: string;
+  created_at: string;
+};
+
+export async function uploadKnowledgeFile(file: File): Promise<KnowledgeUploadResponse> {
+  const body = new FormData();
+  body.append("file", file);
+
+  let response: Response;
+  try {
+    response = await fetch("/api/knowledge/upload", {
+      method: "POST",
+      credentials: "include",
+      body,
+    });
+  } catch {
+    throw new ApiError("Không thể kết nối máy chủ. Vui lòng thử lại.", 0);
+  }
+
+  if (!response.ok) {
+    let message = "Không thể tải tài liệu lên. Vui lòng thử lại.";
+    try {
+      const payload: { detail?: unknown } = await response.json();
+      if (response.status === 401) {
+        message = "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.";
+      } else if (response.status < 500 && typeof payload.detail === "string") {
+        message = payload.detail;
+      }
+    } catch {
+      // Keep the friendly fallback when the server response is not JSON.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return (await response.json()) as KnowledgeUploadResponse;
+}

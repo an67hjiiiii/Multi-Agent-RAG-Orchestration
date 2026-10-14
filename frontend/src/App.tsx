@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import LoginForm from "./components/LoginForm";
 import RegisterForm from "./components/RegisterForm";
+import { KnowledgeUploadForm } from "./components/KnowledgeUploadForm";
 import { ApiError, currentSession, logoutUser } from "./lib/api";
 import type { LoginResponse, RegisterResponse } from "./lib/api";
 
@@ -72,6 +73,7 @@ export default function App() {
           <p className="login-note">
             Vai trò: {loginResponse.user.role}. Phiên đăng nhập được quản lý bởi HttpOnly cookie của máy chủ.
           </p>
+          <KnowledgeUploadForm />
           {logoutError && <p role="alert" className="form-error">{logoutError}</p>}
           <button
             className="secondary-button"
