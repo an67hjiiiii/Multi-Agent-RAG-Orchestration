@@ -100,7 +100,38 @@ export async function loginUser(request: LoginRequest): Promise<LoginResponse> {
 
   return (await response.json()) as LoginResponse;
 }
-export type LogoutResponse = {
+
+export type SessionResponse = {
+  authenticated: boolean;
+  user: AuthenticatedUser | null;
+};
+
+export async function currentSession(): Promise<SessionResponse> {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/session", {
+      method: "GET",
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError("Không thể kết nối máy chủ. Vui lòng thử lại.", 0);
+  }
+
+  if (!response.ok) {
+    let message = "Không thể kiểm tra phiên đăng nhập.";
+    try {
+      const body: { detail?: unknown } = await response.json();
+      if (response.status < 500 && typeof body.detail === "string") {
+        message = body.detail;
+      }
+    } catch {
+      // Keep the friendly fallback when the server response is not JSON.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return (await response.json()) as SessionResponse;
+}export type LogoutResponse = {
   ok: boolean;
   authenticated: boolean;
 };

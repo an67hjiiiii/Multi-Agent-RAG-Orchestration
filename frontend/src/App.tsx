@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LoginForm from "./components/LoginForm";
 import RegisterForm from "./components/RegisterForm";
 import { KnowledgeUploadForm } from "./components/KnowledgeUploadForm";
-import { ApiError, logoutUser } from "./lib/api";
+import { ApiError, currentSession, logoutUser } from "./lib/api";
 import type { LoginResponse, RegisterResponse } from "./lib/api";
 
 export default function App() {
@@ -11,6 +11,30 @@ export default function App() {
   const [loginResponse, setLoginResponse] = useState<LoginResponse | null>(null);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void currentSession()
+      .then((session) => {
+        if (!cancelled && session.authenticated && session.user) {
+          setLoginResponse({ authenticated: true, user: session.user });
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setSessionError(cause instanceof ApiError ? "Không thể khôi phục phiên đăng nhập." : "Không thể kiểm tra phiên đăng nhập.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsRestoringSession(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleLogout() {
     setLogoutError(null);
@@ -25,6 +49,7 @@ export default function App() {
       setIsLoggingOut(false);
     }
   }
+
   return (
     <main className="app-shell">
       <header className="brand" aria-label="Multi-Agent RAG Orchestration">
@@ -32,14 +57,22 @@ export default function App() {
         <span>Multi-Agent RAG <strong>Orchestration</strong></span>
       </header>
 
-      {loginResponse ? (
+      {isRestoringSession ? (
+        <section className="register-card login-placeholder" aria-labelledby="session-loading-title">
+          <span className="eyebrow">PHIÊN ĐĂNG NHẬP</span>
+          <h1 id="session-loading-title">Đang khôi phục phiên…</h1>
+          <p role="status">Đang kiểm tra phiên đăng nhập hiện tại của bạn.</p>
+        </section>
+      ) : loginResponse ? (
         <section className="register-card login-placeholder" aria-labelledby="login-success-title">
-          <span className="eyebrow">ĐĂNG NHẬP THÀNH CÔNG</span>
+          <span className="eyebrow">PHIÊN ĐĂNG NHẬP</span>
           <h1 id="login-success-title">Chào mừng trở lại</h1>
           <p role="status">
             Bạn đã đăng nhập với tài khoản {loginResponse.user.email}.
           </p>
-          <p className="login-note">Phiên đăng nhập được quản lý bởi HttpOnly cookie của máy chủ.</p>
+          <p className="login-note">
+            Vai trò: {loginResponse.user.role}. Phiên đăng nhập được quản lý bởi HttpOnly cookie của máy chủ.
+          </p>
           <KnowledgeUploadForm />
           {logoutError && <p role="alert" className="form-error">{logoutError}</p>}
           <button
@@ -69,6 +102,7 @@ export default function App() {
             {registeredUser && (
               <p role="status">Tài khoản {registeredUser.email} đã được tạo. Vui lòng đăng nhập để tiếp tục.</p>
             )}
+            {sessionError && <p role="alert" className="form-error">{sessionError}</p>}
           </div>
           <LoginForm
             initialEmail={registeredUser?.email}
@@ -80,16 +114,19 @@ export default function App() {
           />
         </section>
       ) : (
-        <RegisterForm
-          onRegistered={(user) => {
-            setRegisteredUser(user);
-            setScreen("login");
-          }}
-          onLogin={() => {
-            setRegisteredUser(null);
-            setScreen("login");
-          }}
-        />
+        <>
+          {sessionError && <p role="alert" className="form-error">{sessionError}</p>}
+          <RegisterForm
+            onRegistered={(user) => {
+              setRegisteredUser(user);
+              setScreen("login");
+            }}
+            onLogin={() => {
+              setRegisteredUser(null);
+              setScreen("login");
+            }}
+          />
+        </>
       )}
 
       <footer className="page-footer">Đăng ký tài khoản • Multi-Agent RAG Orchestration</footer>
