@@ -100,3 +100,34 @@ export async function loginUser(request: LoginRequest): Promise<LoginResponse> {
 
   return (await response.json()) as LoginResponse;
 }
+export type LogoutResponse = {
+  ok: boolean;
+  authenticated: boolean;
+};
+
+export async function logoutUser(): Promise<LogoutResponse> {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError("Không thể kết nối máy chủ. Vui lòng thử lại.", 0);
+  }
+
+  if (!response.ok) {
+    let message = "Đăng xuất không thành công. Vui lòng thử lại.";
+    try {
+      const body: { detail?: unknown } = await response.json();
+      if (response.status < 500 && typeof body.detail === "string") {
+        message = body.detail;
+      }
+    } catch {
+      // Keep the friendly fallback when the server response is not JSON.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return (await response.json()) as LogoutResponse;
+}
