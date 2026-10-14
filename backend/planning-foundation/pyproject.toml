@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "capone-planning-foundation"
+version = "0.1.0"
+description = "Provider-independent planning contracts for CAPONE-32"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.10,<3"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
