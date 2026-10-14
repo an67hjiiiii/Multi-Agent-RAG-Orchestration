@@ -27,7 +27,24 @@ function successfulLoginResponse() {
   }), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
-async function openLoginForm() {
+function anonymousSessionResponse() {
+  return new Response(JSON.stringify({ authenticated: false, user: null }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function stubAppFetch(requestMock: (input: RequestInfo | URL, init?: RequestInit) => unknown) {
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === "/api/auth/session") return Promise.resolve(anonymousSessionResponse());
+    return requestMock(input, init);
+  });
+}
+
+async function renderApp() {
+  render(<App />);
+  await screen.findByRole("button", { name: "Đăng nhập" });
+}async function openLoginForm() {
   await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
   expect(await screen.findByRole("heading", { name: "Đăng nhập" })).toBeTruthy();
 }
@@ -35,8 +52,8 @@ async function openLoginForm() {
 describe("Register UI", () => {
   it("sends the backend contract and moves to the login form after HTTP 201", async () => {
     const fetchMock = vi.fn().mockResolvedValue(successfulResponse());
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await fillValidForm();
     await userEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
@@ -60,8 +77,8 @@ describe("Register UI", () => {
     ["password", "short", "Mật khẩu cần có ít nhất 8 ký tự."],
   ])("rejects invalid %s before sending a request", async (field, value, message) => {
     const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Họ và tên"), "Nguyen Van A");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
@@ -75,22 +92,22 @@ describe("Register UI", () => {
   });
 
   it("shows the duplicate email error from HTTP 409", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+    stubAppFetch(vi.fn().mockResolvedValue(new Response(
       JSON.stringify({ detail: "Email đã được đăng ký" }),
       { status: 409, headers: { "Content-Type": "application/json" } },
     )));
-    render(<App />);
+    await renderApp();
     await fillValidForm();
     await userEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Email này đã được đăng ký.");
   });
 
   it("shows a generic message for an unexpected HTTP error", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+    stubAppFetch(vi.fn().mockResolvedValue(new Response(
       JSON.stringify({ detail: "Internal server error" }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     )));
-    render(<App />);
+    await renderApp();
     await fillValidForm();
     await userEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
     expect(await screen.findByRole("alert")).toHaveProperty(
@@ -100,8 +117,8 @@ describe("Register UI", () => {
   });
 
   it("shows a network failure without losing the form", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
-    render(<App />);
+    stubAppFetch(vi.fn().mockRejectedValue(new TypeError("offline")));
+    await renderApp();
     await fillValidForm();
     await userEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Không thể kết nối máy chủ. Vui lòng thử lại.");
@@ -111,8 +128,8 @@ describe("Register UI", () => {
   it("prevents a second submit while the first request is pending", async () => {
     let resolveRequest!: (response: Response) => void;
     const fetchMock = vi.fn().mockReturnValue(new Promise<Response>((resolve) => { resolveRequest = resolve; }));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await fillValidForm();
     const submit = screen.getByRole("button", { name: "Tạo tài khoản" });
     await userEvent.click(submit);
@@ -127,8 +144,8 @@ describe("Register UI", () => {
 describe("Login UI", () => {
   it("sends email and password, includes credentials, and shows the authenticated user", async () => {
     const fetchMock = vi.fn().mockResolvedValue(successfulLoginResponse());
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await openLoginForm();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
@@ -152,8 +169,8 @@ describe("Login UI", () => {
     ["password", "   ", "Mật khẩu không được để trống."],
   ])("rejects invalid %s before sending a request", async (field, value, message) => {
     const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await openLoginForm();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
@@ -167,11 +184,11 @@ describe("Login UI", () => {
   });
 
   it("shows a friendly message for invalid credentials", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+    stubAppFetch(vi.fn().mockResolvedValue(new Response(
       JSON.stringify({ detail: "Invalid credentials" }),
       { status: 401, headers: { "Content-Type": "application/json" } },
     )));
-    render(<App />);
+    await renderApp();
     await openLoginForm();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "WrongPassword");
@@ -184,8 +201,8 @@ describe("Login UI", () => {
   });
 
   it("shows a network failure without losing the login form", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
-    render(<App />);
+    stubAppFetch(vi.fn().mockRejectedValue(new TypeError("offline")));
+    await renderApp();
     await openLoginForm();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
@@ -207,8 +224,8 @@ describe("Logout UI", () => {
         JSON.stringify({ ok: true, authenticated: false }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await openLoginForm();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
@@ -227,8 +244,8 @@ describe("Logout UI", () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(successfulLoginResponse())
       .mockReturnValueOnce(new Promise<Response>((resolve) => { resolveLogout = resolve; }));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await openLoginForm();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
@@ -253,8 +270,8 @@ describe("Logout UI", () => {
         JSON.stringify({ detail: "Logout unavailable" }),
         { status: 503, headers: { "Content-Type": "application/json" } },
       ));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
+    stubAppFetch(fetchMock);
+    await renderApp();
     await openLoginForm();
     await userEvent.type(screen.getByLabelText("Email"), "viet@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "Password123");
