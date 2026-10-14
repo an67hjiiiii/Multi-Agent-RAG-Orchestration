@@ -1,6 +1,7 @@
 import { useState } from "react";
 import LoginForm from "./components/LoginForm";
 import RegisterForm from "./components/RegisterForm";
+import { KnowledgeUploadForm } from "./components/KnowledgeUploadForm";
 import { ApiError, logoutUser } from "./lib/api";
 import type { LoginResponse, RegisterResponse } from "./lib/api";
 
@@ -38,7 +39,9 @@ export default function App() {
           <p role="status">
             Bạn đã đăng nhập với tài khoản {loginResponse.user.email}.
           </p>
-          <p className="login-note">Phiên đăng nhập được quản lý bởi HttpOnly cookie của máy chủ.</p>          {logoutError && <p role="alert" className="form-error">{logoutError}</p>}
+          <p className="login-note">Phiên đăng nhập được quản lý bởi HttpOnly cookie của máy chủ.</p>
+          <KnowledgeUploadForm />
+          {logoutError && <p role="alert" className="form-error">{logoutError}</p>}
           <button
             className="secondary-button"
             onClick={() => void handleLogout()}
