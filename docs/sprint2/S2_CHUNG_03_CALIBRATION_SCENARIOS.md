@@ -65,7 +65,7 @@ Cột kết quả mong đợi nêu các ý cần có, không bắt buộc câu t
 - `manual_correctness=UNSCORED` và `manual_faithfulness=UNSCORED` ở cả 12 hàng. Chưa chấm lại hoặc nâng nhãn chất lượng trong tài liệu này.
 - Báo cáo không lưu nội dung answer, nên không đủ để xác nhận các ý trả lời ở mục 3 đã được hệ thống đáp ứng.
 
-Mục S2-CHUNG-03 trong [báo cáo Sprint 2](https://github.com/an67hjiiiii/Multi-Agent-Orchestratio-/blob/5803e783c4d1b58b824d29295898bfd7e0f655fb/reports/sprint2/S2_MAI_CHUNG_QA_REPORT.md) cũng ghi rõ tái sử dụng fixture và bằng chứng wiring. Không chuyển các kiểm thử thuộc S2-MAI-06 thành phần việc của Chung.
+Mục S2-CHUNG-03 trong [báo cáo Sprint 2](https://github.com/an67hjiiiii/Multi-Agent-Orchestratio-/blob/5803e783c4d1b58b824d29295898bfd7e0f655fb/reports/sprint2/S2_MAI_CHUNG_QA_REPORT.md) ghi nhận bộ tình huống và bằng chứng wiring có sẵn. Kiểm tra tĩnh fixture/report thuộc S2-MAI-06; tài liệu của Chung tham chiếu kết quả đó và bổ sung kết quả mong đợi, không bổ sung kiểm thử QA.
 
 ## 6. Đối chiếu yêu cầu CAPONE-64
 
@@ -75,4 +75,4 @@ Mục S2-CHUNG-03 trong [báo cáo Sprint 2](https://github.com/an67hjiiiii/Mult
 | Phân theo ba nhóm kỹ thuật | Đề xuất Security, Database, API/Architecture theo Research Plan mục 6.3. | `PROPOSED — PENDING_LEADER_CONFIRMATION`; Jira chưa ghi rõ tên ba nhóm. |
 | Có expected outcome cho từng case | Bổ sung ý trả lời, nguồn tham chiếu và cách xử lý thiếu bằng chứng. | Đây là kỳ vọng để đối chiếu, chưa phải kết quả chạy đạt. |
 | Dùng được cho kiểm thử và đánh giá | Có input, corpus cố định và hướng dẫn ở mục 4. | Chưa thực hiện kiểm thử luồng tích hợp hoặc chấm ngữ nghĩa trong bước soạn tài liệu. |
-| Có tài liệu/bằng chứng scenario | Tài liệu này dẫn dataset, corpus và báo cáo hiện có. | Bản chuẩn bị local; chưa coi là đã tích hợp hoặc nghiệm thu CAPONE-64. |
+| Có tài liệu/bằng chứng scenario | Tài liệu này bổ sung kết quả mong đợi và dẫn dataset, corpus, báo cáo hiện có. | Bản bàn giao trên feature branch; chưa tích hợp hoặc nghiệm thu CAPONE-64. |
