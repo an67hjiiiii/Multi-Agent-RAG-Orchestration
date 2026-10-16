@@ -3,17 +3,19 @@
 - Người phụ trách: Kiều Đức Chung.
 - Jira: `CAPONE-63` (thuộc Story `CAPONE-42`: Hỏi đáp đơn giản có đối chiếu bằng chứng).
 - Phạm vi: `DOC_ONLY` — Xác định ranh giới hỗ trợ của chức năng Simple Ask, đối chiếu bộ kịch bản hiệu chuẩn M0 với yêu cầu nghiệp vụ.
-- Trạng thái: `LOCAL_PREPARATION` — Chuẩn bị nhánh local, chờ phê duyệt triển khai sớm để mở PR.
+- Mốc bàn giao 16/10/2026: Đã mở [PR #21](https://github.com/an67hjiiiii/Multi-Agent-RAG-Orchestration/pull/21) để review; chưa tích hợp vào `dev` tại mốc này.
 
 ---
 
 ## 1. Nguồn dữ liệu & Căn cứ đối chiếu
 
-Tài liệu được chuyển và chuẩn hóa từ mục **S2-CHUNG-02 — fixed in-scope and absent-from-corpus cases** trong:
+Tài liệu tham chiếu bộ tình huống **S2-CHUNG-02 — fixed in-scope and absent-from-corpus cases** trong:
 - [`reports/sprint2/S2_MAI_CHUNG_QA_REPORT.md`](https://github.com/an67hjiiiii/Multi-Agent-Orchestratio-/blob/5803e783c4d1b58b824d29295898bfd7e0f655fb/reports/sprint2/S2_MAI_CHUNG_QA_REPORT.md) thuộc nhánh `sprint2/feature/s2-chung-02-evidence-scope`, commit `5803e783c4d1b58b824d29295898bfd7e0f655fb`, checkpoint Sprint 2 `0add368e92fc95bad5256dcf13ed0c3bfb21fbb7`.
 - Bộ 12 kịch bản hiệu chuẩn tại [`datasets/calibration/m0_cases.json`](https://github.com/an67hjiiiii/Multi-Agent-Orchestratio-/blob/5803e783c4d1b58b824d29295898bfd7e0f655fb/datasets/calibration/m0_cases.json).
 - 3 tài liệu tri thức cố định: `demo_security.md`, `demo_database.md`, `demo_api.md`.
 - Các quy định cốt lõi của chức năng Simple Ask trong Story Jira `CAPONE-42`.
+
+Phần bổ sung của Chung là đối chiếu 12 tình huống với CAPONE-42 và các contract liên quan, tách phạm vi câu hỏi khỏi trạng thái xử lý, đồng thời ghi rõ ranh giới truy cập dữ liệu theo người dùng. Các câu hỏi M0 và corpus được giữ nguyên để đối chiếu.
 
 Đối chiếu contract ngày 15/10/2026:
 - `origin/dev` tại `5bb1f807ca13a5c66fd49e5518bf329f23bc0327` chưa có các file Execution Foundation hoặc Worker dưới đây. [CAPONE-42](https://thanhhai2kar5.atlassian.net/browse/CAPONE-42) yêu cầu xử lý `NO_EVIDENCE` và `FAILED`; [CAPONE-63](https://thanhhai2kar5.atlassian.net/browse/CAPONE-63) yêu cầu xác thực phạm vi, không định nghĩa bộ status mới.
@@ -49,11 +51,11 @@ Dưới đây là bảng đối chiếu 12 kịch bản kiểm thử cố địn
 | Mã case | Câu hỏi tra cứu | Miền tài liệu | Bằng chứng kỳ vọng | Phân loại phạm vi | Ghi chú xử lý |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `M0-01` | Authentication verifies what in this system? | Security (`demo_security.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Đoạn tài liệu nêu trực tiếp việc xác minh danh tính (`DIRECT`). |
-| `M0-02` | What does authorization check before an action is allowed? | Security (`demo_security.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Đoạn tài liệu nêu quyền hạn và vai trò người dùng (`DIRECT`). |
+| `M0-02` | What does authorization check before an action is allowed? | Security (`demo_security.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Đoạn tài liệu nêu việc kiểm tra người dùng đã xác thực có quyền thực hiện hành động hay không (`DIRECT`). |
 | `M0-03` | Can JWT claims replace server-side authorization policy? | Security (`demo_security.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Ràng buộc chính sách phía server so với claims (`SUPPORTING`). |
 | `M0-04` | Where are user records stored? | Database (`demo_database.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Bảng người dùng trong cơ sở dữ liệu quan hệ (`DIRECT`). |
 | `M0-05` | Which database queries should be reviewed for indexes? | Database (`demo_database.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Tiêu chí đánh giá truy vấn cần đánh chỉ mục (`DIRECT`). |
-| `M0-06` | When are transaction boundaries required? | Database (`demo_database.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Ranh giới transaction khi cập nhật nhiều bảng (`DIRECT`). |
+| `M0-06` | When are transaction boundaries required? | Database (`demo_database.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Cần ranh giới transaction cho thao tác ghi nhiều bước phải giữ tính nhất quán (`DIRECT`). |
 | `M0-07` | What kind of endpoints does the service expose? | API (`demo_api.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Các REST endpoints chuẩn của dịch vụ (`DIRECT`). |
 | `M0-08` | What should API contracts define? | API (`demo_api.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Ràng buộc dữ liệu đầu vào và phản hồi lỗi (`SUPPORTING`). |
 | `M0-09` | When should architectural dependencies be explicit? | Architecture (`demo_api.md`) | `present` | **Nhóm 1: Trong phạm vi, có bằng chứng** | Phụ thuộc kiến trúc module rõ ràng (`DIRECT`). |
