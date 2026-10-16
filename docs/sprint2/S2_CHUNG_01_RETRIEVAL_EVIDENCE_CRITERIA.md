@@ -1,15 +1,19 @@
 # S2-CHUNG-01: Tiêu chí đánh giá bằng chứng truy xuất
 
 - Người phụ trách: Kiều Đức Chung.
-- Jira: `CAPONE-62` theo thông tin Planning Poker được bàn giao; chưa xác minh trực tiếp trên Jira.
+- Jira: [CAPONE-62](https://thanhhai2kar5.atlassian.net/browse/CAPONE-62).
 - Phạm vi: `DOC_ONLY` — bảng tiêu chí để đánh giá tài liệu tìm được, chưa có chức năng tự chấm điểm.
 
-## Nguồn
+## Nguồn và phần bổ sung
 
-Chuyển riêng mục **S2-CHUNG-01 — evidence relevance rubric** từ
+Tài liệu sử dụng rubric **S2-CHUNG-01 — evidence relevance rubric** trong
 [`reports/sprint2/S2_MAI_CHUNG_QA_REPORT.md`](https://github.com/an67hjiiiii/Multi-Agent-Orchestratio-/blob/5803e783c4d1b58b824d29295898bfd7e0f655fb/reports/sprint2/S2_MAI_CHUNG_QA_REPORT.md),
 nhánh `sprint2/feature/s2-chung-01-relevance-rubric`, commit
 `5803e783c4d1b58b824d29295898bfd7e0f655fb`.
+
+Phần bàn giao của Chung diễn giải tiêu chí bằng tiếng Việt, làm rõ cách dùng
+và bổ sung 5 ví dụ áp dụng trên bộ dữ liệu cố định. Nguồn rubric, câu hỏi,
+tài liệu mẫu và báo cáo kiểm tra được giữ để đối chiếu.
 
 ## Bảng tiêu chí
 
@@ -34,8 +38,8 @@ cho thấy câu trả lời đã đúng.
 - **Faithfulness — mức độ bám sát tài liệu:** câu trả lời có được tài liệu hỗ trợ không?
 
 Tính đúng đắn và mức độ bám sát tài liệu là hai nội dung đánh giá riêng của
-người review. Việc chuyển bảng tiêu chí này không có nghĩa là đã thực hiện
-human semantic review (con người đánh giá chất lượng nội dung).
+người review. Các ví dụ trong tài liệu minh họa cách dùng rubric; chưa thực
+hiện đánh giá ngữ nghĩa trên câu trả lời thực tế.
 
 ## Ví dụ áp dụng rubric trên bộ dữ liệu cố định
 
