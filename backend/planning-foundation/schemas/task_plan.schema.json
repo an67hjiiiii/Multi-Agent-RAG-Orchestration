@@ -1,0 +1,284 @@
+{
+  "$defs": {
+    "Concern": {
+      "additionalProperties": false,
+      "description": "Mối quan tâm cần xem xét, có thể liên quan đến nhiều yêu cầu.",
+      "properties": {
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "obligation_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+            "type": "string"
+          },
+          "title": "Obligation Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "title": "Concern",
+      "type": "object"
+    },
+    "Obligation": {
+      "additionalProperties": false,
+      "description": "Yêu cầu bắt buộc: được giao cho task hoặc ghi rõ là chưa phân công.",
+      "properties": {
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "source_excerpt": {
+          "anyOf": [
+            {
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional quotation from the original request.",
+          "title": "Source Excerpt"
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "title": "Obligation",
+      "type": "object"
+    },
+    "SemanticDependency": {
+      "additionalProperties": false,
+      "description": "A successor requires an output or derived context from its predecessor.\n\nThese are directed execution prerequisites. Two tasks merely sharing the\nsame document do not require a dependency edge.",
+      "properties": {
+        "predecessor_task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Predecessor Task Id",
+          "type": "string"
+        },
+        "successor_task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Successor Task Id",
+          "type": "string"
+        },
+        "kind": {
+          "default": "requires_output",
+          "enum": [
+            "requires_output",
+            "requires_context"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "predecessor_task_id",
+        "successor_task_id",
+        "rationale"
+      ],
+      "title": "SemanticDependency",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "description": "Một việc trong kế hoạch; module này chưa thực thi công việc đó.",
+      "properties": {
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "role": {
+          "description": "Role identifier chosen by the surrounding system.",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Role",
+          "type": "string"
+        },
+        "obligation_ids": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Obligation Ids",
+          "type": "array"
+        },
+        "concern_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Concern Ids",
+          "type": "array"
+        },
+        "evidence_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "role",
+        "obligation_ids"
+      ],
+      "title": "Task",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Structured planning output with explicit coverage and one dependency graph.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "obligations": {
+      "items": {
+        "$ref": "#/$defs/Obligation"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Obligations",
+      "type": "array"
+    },
+    "concerns": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Concern"
+      },
+      "maxItems": 256,
+      "title": "Concerns",
+      "type": "array"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/Task"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Tasks",
+      "type": "array"
+    },
+    "dependencies": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SemanticDependency"
+      },
+      "maxItems": 32640,
+      "title": "Dependencies",
+      "type": "array"
+    },
+    "unassigned_obligation_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Unassigned Obligation Ids",
+      "type": "array"
+    },
+    "unassigned_concern_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Unassigned Concern Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "request_id",
+    "obligations",
+    "tasks"
+  ],
+  "title": "TaskPlan",
+  "type": "object"
+}
