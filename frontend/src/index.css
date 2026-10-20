@@ -74,6 +74,9 @@ h1 { margin: 0; color: #142033; font-size: 29px; letter-spacing: -.04em; line-he
 .workspace-empty-result { display: grid; min-height: 134px; place-content: center; gap: 8px; color: #687589; text-align: center; }
 .workspace-empty-result strong { color: #344256; font-size: 15px; }
 .workspace-empty-result span { font-size: 13px; }
+.workspace-pending-result { display: grid; min-height: 134px; place-content: center; gap: 8px; color: #687589; text-align: center; }
+.workspace-pending-result strong { color: #3157d5; font-size: 15px; }
+.workspace-pending-result span { max-width: 680px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-composer { padding: 20px 28px 24px; border-top: 1px solid #edf0f5; }
 .workspace-composer label { display: block; margin-bottom: 8px; color: #344256; font-size: 13px; font-weight: 650; }
 .workspace-composer-row { display: flex; align-items: flex-end; gap: 10px; }

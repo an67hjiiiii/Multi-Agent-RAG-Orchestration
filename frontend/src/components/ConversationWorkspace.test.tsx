@@ -1,7 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import ConversationWorkspace from "./ConversationWorkspace";
+
+afterEach(() => cleanup());
 
 describe("ConversationWorkspace", () => {
   it("renders the workspace shell, result slot, and question integration point", async () => {
@@ -22,5 +24,31 @@ describe("ConversationWorkspace", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(onSubmitQuestion).toHaveBeenCalledWith("What is in my corpus?");
+  });
+
+  it("preserves the pending question and blocks duplicate submits while loading", async () => {
+    let resolveRequest!: () => void;
+    const onSubmitQuestion = vi.fn(() => new Promise<void>((resolve) => {
+      resolveRequest = resolve;
+    }));
+    render(
+      <ConversationWorkspace
+        pendingQuestion="Saved question"
+        onSubmitQuestion={onSubmitQuestion}
+      />,
+    );
+
+    const question = screen.getByLabelText("Question");
+    expect(question).toHaveProperty("value", "Saved question");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(onSubmitQuestion).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Sending…" })).toHaveProperty("disabled", true);
+    expect(question).toHaveProperty("disabled", true);
+    expect(screen.getByRole("status")).toHaveProperty("textContent", "Question pendingSaved question");
+
+    resolveRequest();
+    expect(await screen.findByRole("button", { name: "Send" })).toHaveProperty("disabled", false);
+    expect(question).toHaveProperty("value", "Saved question");
   });
 });
