@@ -3,6 +3,7 @@ import { ApiError, registerUser, type RegisterResponse } from "../lib/api";
 
 type RegisterFormProps = {
   onRegistered: (user: RegisterResponse) => void;
+  onLogin: () => void;
 };
 
 type FormErrors = Partial<Record<"email" | "name" | "password", string>>;
@@ -25,7 +26,7 @@ function validateForm(email: string, name: string, password: string): FormErrors
   return errors;
 }
 
-export default function RegisterForm({ onRegistered }: RegisterFormProps) {
+export default function RegisterForm({ onRegistered, onLogin }: RegisterFormProps) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -121,7 +122,9 @@ export default function RegisterForm({ onRegistered }: RegisterFormProps) {
         </button>
       </form>
 
-      <p className="form-footer">Đã có tài khoản? <span>Đăng nhập</span></p>
+      <p className="form-footer">
+        Đã có tài khoản? <button className="text-button" type="button" onClick={onLogin}>Đăng nhập</button>
+      </p>
     </section>
   );
 }

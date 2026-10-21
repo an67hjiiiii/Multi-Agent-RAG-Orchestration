@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
@@ -46,3 +46,5 @@ class KnowledgeSource(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+    chunks = relationship("KnowledgeChunk", back_populates="source", cascade="all, delete-orphan")

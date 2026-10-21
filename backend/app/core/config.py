@@ -40,6 +40,8 @@ class Settings:
         getenv("MAX_UPLOAD_SIZE_BYTES", str(10 * 1024 * 1024))
     )
     allowed_extensions: tuple[str, ...] = (".txt", ".md", ".pdf")
+    max_pdf_pages: int = int(getenv("MAX_PDF_PAGES", "100"))
+    max_extracted_chars: int = int(getenv("MAX_EXTRACTED_CHARS", "500000"))
 
 
 

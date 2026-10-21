@@ -40,15 +40,77 @@ h1 { margin: 0; color: #142033; font-size: 29px; letter-spacing: -.04em; line-he
 .primary-button:hover:not(:disabled) { background: #2548bd; }
 .primary-button:active:not(:disabled) { transform: translateY(1px); }
 .primary-button:disabled { cursor: wait; opacity: .72; }
+.form-actions { display: flex; gap: 12px; margin-top: 3px; }
+.form-actions .primary-button, .form-actions .secondary-button { flex: 1; margin-top: 0; }
+.text-button { padding: 0; border: 0; color: #3157d5; background: transparent; cursor: pointer; font: inherit; font-weight: 650; }
+.text-button:hover { text-decoration: underline; }
 .form-footer { margin: 22px 0 0; color: #718096; text-align: center; font-size: 13px; }
-.form-footer span { color: #3157d5; font-weight: 650; }
 .login-placeholder h1 { margin-bottom: 12px; }
 .login-note { padding-top: 12px; border-top: 1px solid #edf0f5; font-size: 13px !important; }
 .secondary-button { width: 100%; margin-top: 24px; color: #3157d5; background: #eef2ff; }
 .secondary-button:hover { background: #e4eaff; }
 .page-footer { color: #98a2b3; font-size: 11px; text-align: center; }
+.conversation-workspace {
+  width: min(100%, 980px);
+  margin: 26px 0 8px;
+  overflow: hidden;
+  border: 1px solid #e5eaf1;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 50px #243c6110, 0 2px 8px #243c6108;
+}
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 28px;
+  border-bottom: 1px solid #edf0f5;
+}
+.workspace-eyebrow { color: #5268bd; font-size: 11px; font-weight: 750; letter-spacing: .12em; }
+.workspace-header h2 { margin: 6px 0 0; color: #142033; font-size: 22px; letter-spacing: -.035em; }
+.workspace-session { overflow: hidden; color: #687589; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-result { min-height: 190px; padding: 28px; background: #fbfcff; }
+.workspace-empty-result { display: grid; min-height: 134px; place-content: center; gap: 8px; color: #687589; text-align: center; }
+.workspace-empty-result strong { color: #344256; font-size: 15px; }
+.workspace-empty-result span { font-size: 13px; }
+.workspace-pending-result { display: grid; min-height: 134px; place-content: center; gap: 8px; color: #687589; text-align: center; }
+.workspace-pending-result strong { color: #3157d5; font-size: 15px; }
+.workspace-pending-result span { max-width: 680px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-composer { padding: 20px 28px 24px; border-top: 1px solid #edf0f5; }
+.workspace-composer label { display: block; margin-bottom: 8px; color: #344256; font-size: 13px; font-weight: 650; }
+.workspace-composer-row { display: flex; align-items: flex-end; gap: 10px; }
+.workspace-composer textarea { min-height: 70px; flex: 1; resize: vertical; padding: 11px 12px; border: 1px solid #d9e0ea; border-radius: 8px; outline: none; color: #182230; background: #fff; line-height: 1.45; }
+.workspace-composer textarea:focus { border-color: #5674e7; box-shadow: 0 0 0 3px #5674e71c; }
+.workspace-composer button { min-height: 42px; padding: 0 18px; border: 0; border-radius: 8px; color: #fff; background: #3157d5; cursor: pointer; font-weight: 650; }
+.workspace-composer button:disabled { cursor: not-allowed; opacity: .55; }
+.answer-citation-view { padding: 22px; border: 1px solid #e5eaf1; border-radius: 12px; background: #fff; color: #182230; }
+.answer-citation-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.answer-citation-eyebrow { color: #5268bd; font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.answer-citation-header h3 { margin: 5px 0 0; color: #142033; font-size: 18px; letter-spacing: -.025em; }
+.answer-citation-status { padding: 5px 8px; border-radius: 999px; color: #3157d5; background: #eef2ff; font-size: 11px; font-weight: 700; }
+.answer-citation-description { margin: 13px 0 0; color: #687589; font-size: 13px; line-height: 1.5; }
+.answer-citation-pending { display: flex; align-items: center; gap: 9px; margin-top: 18px; padding: 11px 12px; border-radius: 8px; color: #3157d5; background: #f3f5ff; font-size: 13px; }
+.answer-citation-spinner { width: 10px; height: 10px; border: 2px solid #b8c4f3; border-top-color: #3157d5; border-radius: 50%; animation: answer-citation-spin .8s linear infinite; }
+@keyframes answer-citation-spin { to { transform: rotate(360deg); } }
+.answer-citation-copy, .answer-citation-empty, .answer-citation-error { margin: 18px 0 0; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+.answer-citation-copy-muted, .answer-citation-empty { color: #687589; }
+.answer-citation-error { color: #9f2828; }
+.answer-citation-missing { display: grid; gap: 4px; margin-top: 16px; padding: 10px 12px; border-left: 3px solid #d69435; background: #fff7e8; color: #8b5819; font-size: 12px; line-height: 1.45; }
+.answer-citation-list { margin-top: 19px; padding-top: 15px; border-top: 1px solid #edf0f5; }
+.answer-citation-list-label { color: #687589; font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.answer-citation-list ul { display: grid; gap: 8px; margin: 9px 0 0; padding: 0; list-style: none; }
+.answer-citation-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; color: #344256; font-size: 12px; }
+.answer-citation-list code { padding: 3px 5px; border-radius: 4px; color: #3157d5; background: #eef2ff; font-size: 11px; }
+.answer-citation-list small { color: #687589; }
 @media (max-width: 520px) {
   .app-shell { padding: 20px 16px 16px; }
   .register-card { padding: 30px 24px 26px; border-radius: 14px; }
   .brand { font-size: 12px; }
+  .form-actions { flex-direction: column-reverse; }
+  .conversation-workspace { margin-top: 20px; border-radius: 14px; }
+  .workspace-header { align-items: flex-start; flex-direction: column; padding: 20px 22px; }
+  .workspace-result { padding: 22px; }
+  .workspace-composer { padding: 18px 22px 22px; }
+  .workspace-composer-row { align-items: stretch; flex-direction: column; }
 }
